@@ -1,0 +1,412 @@
+### Ohcle(Today's Climbing) Applying Clean Architecture - Part 1
+- Studying Duration: March 28, 2024 - April 1, 2024
+- Purpose: Refactoring apps using Clean Architecture, thinking about Clean Architecture
+- [Projects Github](https://github.com/ohcle/ohcle-iOS/tree/develop_cleanArchitecture) : develop_cleanarchitecture(branch name)
+    - develop_ca_DTO
+    - develop_ca_entity
+    - develop_ca_usecaseAndRepository
+- Table of Contents
+    - Foreword
+    - What Exactly Are Dependencies?
+        - Clean Architecture : Dependencies should only point inwards
+            - Why?
+            - What is the Dependency Inversion Principle (DIP)?
+    - Why Divide into So Many Layers When It Works Fine Without Them?
+    - Core of Clean Architecture: What if I Don't Have Much Time?
+        - Refactoring Sequence
+    - Conclusion
+
+    
+## Foreword
+Since numerous documents provide a more thorough explanation of what Clean Architecture is and who initiated the concept, I'll skip that part. Instead, I'll share my reflections on refactoring some functionalities of an existing project using the principles of Clean Architecture within a short span of four days. I'll discuss the challenges I faced during this process, as well as how I approached learning about Clean Architecture to enhance my understanding.
+
+
+## What Exactly Are Dependencies?
+I've started reading an article about SwiftUI Clean Architecture that popped up at the top of my search results. The term that stood out the most to me was `dependency`
+
+
+I found myself pondering how to explain what dependency is when someone asks. We're all familiar with the word dependency in our daily lives. However, I couldn't help but wonder why it appears so frequently in articles discussing Clean Architecture.
+
+So, here's how I think I can explain this concept:
+
+Let's imagine a newborn baby. This little one relies on their caregiver for everything – eating, going to the bathroom, sleeping, and even getting dressed. Without someone to take care of them, the baby wouldn't be able to do anything. In other words, we could say the baby is "**dependent**" on their parents, right?
+
+![](https://velog.velcdn.com/images/catcota/post/018ac4f4-32ca-4787-afdf-e43a6a63a307/image.png)
+<figcaption style="text-align:center; font-size:15px; color:#808080; margin-top:40px"> 출처 https://velog.velcdn.com/images/catcota/post/018ac4f4-32ca-4787-afdf-e43a6a63a307/
+</figcaption>
+
+</br>
+
+I understood it similarly in programming. That is when we say "object A depends on object B," it means A cannot function without B.
+
+Shall we look at the code below?
+
+> In reality, the Parent type should have Baby type property to closely resemble the real world, but let's set aside that thought for a moment! Let's focus on the dependency.
+
+```swift
+struct Baby {
+    let parent: Parent
+    let name: String
+    let age: UInt
+    
+    func eat() {
+        self.parent.feed()
+    }
+}
+
+struct Parent {
+    //MARK: Properties
+    ..
+    
+    //MARK: Methods
+    func feed(){
+        //
+    }
+}
+```
+
+The `Baby` type must have a 'parent' property and without this 'parent' it would not exist (meaning it cannot be instantiated)
+
+I think I can bring this example of code in my project
+
+```swift
+//MARK: - UseCases 
+protocol RefreshClimbingRecordUseCase {
+    func fetch(requestValue: ClimbingRecordDate) async -> Result<MonthRecordEntity, Error>
+}
+
+final class RefreshMonthClimbingRecordUseCase: RefreshClimbingRecordUseCase {
+    private let repository: RecordsRepository
+    
+    init(repository: RecordsRepository) {
+        self.repository = repository
+    }
+    
+    func fetch(requestValue: ClimbingRecordDate) async -> Result<MonthRecordEntity, Error> {
+        
+        //MARK: Devlivering info for Networking
+        let result = await repository.fetch(requestValue: requestValue)
+        return result.mapError { $0 as Error }
+    }
+}
+```
+
+### Clean Architecture : Dependencies should only point inwards
+The reason why "dependency" is frequently mentioned in Clean Architecture is because one of its most crucial principles is that each layer should depend unidirectionally, and inwardly.
+
+In other words, each layer should not depend on the layers outside of itself. For example, UseCases should not be aware of the roles of Controllers, Gateways, or Presenters.
+
+When we say "not be aware of," it means that within the UseCases, we should not utilize object that exist outside of its layeras types of properties, method parameters, return types, etc.
+
+![https://daryeou.tistory.com/280](https://hackmd.io/_uploads/B1cJBM_kR.png)
+<figcaption style="text-align:center; font-size:15px; color:#808080; margin-top:40px">
+    출처https://daryeou.tistory.com/280
+  </figcaption>
+
+#### Why Dependencies should only point inwards
+Then why emphasize unidirectional dependency?
+
+It's a bit of a sad story, but unidirectional dependency is like **unrequited love**. The person receiving love doesn't know who is in love with them, and even if that person leaves or stops loving them, it doesn't affect them at all. Similarly, even if someone else falls in love with them, it doesn't disrupt their life.
+
+Unidirectional dependency works the same way. Even if UseCases change, Entities don't know if UseCases are in love with them, so even if new UseCases emerge, there are no issues with their roles and functionalities.
+
+>Note: The analogy used here is for illustrative purposes and may not perfectly capture all aspects of unidirectional dependency in Clean Architecture.
+
+![](https://velog.velcdn.com/images/catcota/post/24e41fc4-5c8f-41be-9660-000902c0832a/image.png)
+<figcaption style="text-align:center; font-size:15px; color:#808080; margin-top:40px">
+    출처 https://bbs.ruliweb.com/community/board/300143/read/60973853
+</figcaption>
+
+
+#### What is the Dependency Inversion Principle (DIP)?
+
+Suddenly, some very complex words, right?
+
+This concept is one of the five basic principles of object-oriented programming and design called SOLID. In Clean Architecture, we use DIP to reduce the coupling between objects. (In other words, we aim to reduce relationships where objects depend on each other.)
+
+Let's reconsider the `Baby`, `Parent` code again. Dependency inversion, in simple terms, means that anyone can be the parent of a baby as long as they meet certain conditions, not just the `Parent`.
+
+So, we can consider dependency inversion as the act of reversing the dependency direction by depending on objects that satisfy certain conditions, rather than on specific objects (or types, instances).
+
+Let's refactor the `Baby`, `Parent` type using protocols to reduce dependencies.
+
+> Note: The SOLID principles stand for Single Responsibility, Open-Closed, Liskov Substitution, Interface Segregation, and Dependency Inversion.
+
+
+```swift
+// 1. Creating Specific Conditions: Specify the conditions under which a type can become a caregiver within the Parentable protocol type.
+protocol Parentable {
+    func feed()
+    func putSleep()
+}
+
+
+struct Baby {
+    
+// 2. Changing to Parentable type instead of the original `Parent`.    
+    let parent: Parentable
+    let name: String
+    let age: UInt
+    
+    func eat() {
+        self.parent.feed()
+    }
+}
+
+struct Parent: Parentable {
+    //MARK: Properties
+    ..
+    
+    //MARK: Methods
+    func feed(){
+        //
+    }
+    
+    func putSleep() {
+        
+    }
+}
+
+
+struct GrandParents: Parentable {
+    //MARK: Properties
+    ..
+    
+    //MARK: Methods
+    func feed(){
+        //
+    }
+    
+    func putSleep() {
+        //
+    }
+}
+
+struct Goverment: Parentable {
+    //MARK: Properties
+    ..
+    
+    //MARK: Methods
+    func feed(){
+        //
+    }
+    
+    func putSleep() {
+        //
+    }
+}
+```
+
+In the original code, `Baby` could only have an instance of the `Parent` type as its property. However, in the refactored structure, `Baby` can have instances of any type that adopts the `Parentable` protocol, such as `GrandParents`, `Government`, etc., as its parent.
+
+
+### Why Divide into So Many Layers When It Works Fine Without Them?
+
+Are you also questioning why we must divide things into so many layers when everything seems to work fine without them? I, too, struggled to come up with a clear answer to this question when applying Clean Architecture.
+
+However, as I began mapping DTO(Data Transfer Objects) to Entities, I was able to organize my answer.
+
+#### Original Code
+```swift
+//CalenderModel serves as both Entity and DTO roles
+struct CalenderModel: Decodable, Identifiable,Hashable {
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+    
+    static func == (lhs: CalenderModel,
+                   rhs: CalenderModel) -> Bool {
+        return lhs.id == rhs.id
+    }
+    
+    let id: Int
+    let `where`: ClimbingLocation?
+    let when: String
+    let level: Int
+    let score: Float
+    let picture: [String?]?
+    let thumbnail: String?
+    
+    enum CodingKeys: String, CodingKey {
+        case id
+        case `where`
+        case when
+        case level
+        case score
+        case picture
+        case thumbnail
+    }
+    
+    struct ClimbingLocation: Decodable {
+        let id: Int
+        let name: String
+        let address: String
+        let latitude: Float
+        let longitude: Float
+    }
+}
+```
+
+#### Refactored Code
+```swift
+//Separation of Entity and DTO roles
+//
+// MARK: - Climbing Data Transfer Object 
+struct ClimbingMonthRecord {
+    let list: [ClimbingRecord]
+}
+
+struct ClimbingRecord: Decodable {
+    let id: Int
+    let `where`: ClimbingLocation?
+    let date: String
+    let level: Int
+    let score: Float
+    let picture: [String?]?
+    let thumbnail: String?
+    
+    enum CodingKeys: String, CodingKey {
+        case id
+        case `where`
+        case date = "when"
+        case level
+        case score
+        case picture
+        case thumbnail
+    }
+    
+    struct ClimbingLocation: Decodable {
+        let id: Int
+        let name: String
+        let address: String
+        let latitude: Float
+        let longitude: Float
+    }
+}
+
+// MARK: - Mappings to Domain
+extension ClimbingMonthRecord {
+    func transformToDomin() -> MonthRecordEntity {
+        return .init(monthRecord: self)
+    }
+}
+```
+- The data received from the server may differ from the data actually used.
+- There may be cases where the type of data received from the server needs to be changed.
+- By separating the type and nature of the data received from the server, it becomes easier to reflect changes.
+- It allows for explicit classification of the data actually used.
+- The role of methods becomes clearer, making it easier to write test code.
+
+This is my answer. What do you think?
+
+
+### Core of Clean Architecture: What if I Don't Have Much Time?
+I've only studied just for four days so I can't confidently say it's "**the core**".  But from what I've seen, the most important aspects seem to be **dependency management** (unidirectional dependencies, reducing dependencies) and **selecting the appropriate layers** for my needs, along with defining those layers.
+
+![https://medium.com/@duncan.beeby/the-problem-isnt-choice-237385821a1](https://velog.velcdn.com/images/catcota/post/d6e2dfeb-a479-4d45-8f5b-7443eb05982a/image.png)
+<figcaption style="text-align:center; font-size:15px; color:#808080; margin-top:40px">
+    출처 https://medium.com/@duncan.beeby/the-problem-isnt-choice-237385821a1
+  </figcaption>
+
+</br>
+
+And what's even more important is that **the scope of layers is not absolute**. Once you've established unidirectional dependencies and defined the roles and boundaries of each layer, I believe you're effectively applying Clean Architecture.
+
+Sometimes, we tend to focus more on the design patterns and architectures we want to use, trying to fit all our services into them. It's important to remind ourselves why we chose these design patterns and architectures in the first place.
+
+#### Refactoring Sequence I Did
+
+When you read articles explaining Clean Architecture, you often see it composed of numerous layers.
+
+While it would be beneficial to implement all these layers in preparation for the potential growth of the service, if time is limited, selecting only the truly necessary layers is advisable.
+
+Also, if you clarify the definition of the layer you think, you will be able to reduce the time spent thinking about which layer should the object that plays this role while refactoring be included
+
+
+Here's how I started refactoring:
+
+> 1. Identify types serving as DTOs.
+> 2. Design Entities.
+> 3. Map DTOs to Entities.
+> 4. Define UseCases.
+> 5. Define Repositories.
+
+As Entity is the highest-level layer, I initially felt inclined to prioritize it. However, I realized that I needed to address the separation of types responsible for networking and decoding first. This is because I was using the same types for both networking and decoding, directly as data for ViewModels.
+
+
+#### Layers I used
+In my case, I've organized the layers as below.
+
+> 1. Domain Layer
+- UseCases
+    - RefreshClimbingRecordUseCase
+2. Data Layer
+- Entity
+    - MonthRecordEntity
+    - ClimbingRecordDate
+- Repository
+    - RecordRepository
+3. Presentaion Layer
+- I haven't separated this layer yet because I haven't found the need to implement it.
+4. Infrastructure
+    - NetworkService
+
+When looking at different example codes and projects, I noticed various types fulfilling roles such as *Storage, Presenter*, and others. However, due to the limited time I had and the relatively small scale of my app, I didn't find it necessary to implement such types.
+
+I encourage you all to explore various projects and derive enjoyment from designing your own Clean Architecture structure and layers!
+
+
+### Concluding Remarks
+The main reason I started studying Clean Architecture is that my side projects, which were initially aimed solely at releasing the app, **always left me feeling uneasy**.
+
+![https://debate.protocommunications.com/frustrated-meme/](https://velog.velcdn.com/images/catcota/post/c25df1ed-dbfe-4aa5-b00b-812ffa709dd7/image.png)
+<figcaption style="text-align:center; font-size:15px; color:#808080; margin-top:40px">
+    출처 https://debate.protocommunications.com/frustrated-meme/
+  </figcaption>
+
+</br>
+
+It may sound like an excuse, but juggling side projects alongside my main job made it incredibly challenging to dedicate time to focus on app internal structures and design patterns. Especially as project deadlines extended, both my team and I grew weary, often prioritizing "Let's release it!" over considering the internal architecture.
+
+Although I managed to refactor only few features using Clean Architecture principles, my goal moving forward is to refactor the remaining features as well!
+
+- Remaining Refactoring Required Features
+    - Create UseCases for adding and editing memos depending on the situation
+    - Create Storage object and add related logic
+    - Add caching logic
+    - Implement network infrastructure
+    - Implement suitable Presenter for SwiftUI
+    - ...
+
+
+If you notice any conceptual errors in the above text or have any topics you'd like to discuss together, please feel free to do so anytime. 
+
+Your input is always welcome! 
+Thank you for taking the time to read the lengthy text.
+
+
+![https://s3.memeshappen.com/memes/Thanks--meme-36035.png](https://velog.velcdn.com/images/catcota/post/5e96b328-0c53-4d79-a3f7-7b6ec2645de3/image.png)
+<figcaption style="text-align:center; font-size:15px; color:#808080; margin-top:40px">
+    출처 https://hasanozyer06.medium.com/selenium-driver-class-full-explanation-faf43e8ddfbe
+  </figcaption>
+
+
+#### Reference
+https://velog.io/@ddophi98/클린-아키텍쳐
+
+https://jerry311.tistory.com/73
+
+https://jaime-note.tistory.com/406
+
+https://medium.com/@apfhdznzl/data-layer-repository-datasource-9621d73b6144
+
+https://blog.coderifleman.com/2017/12/18/the-clean-architecture/
+
+https://gon125.github.io/posts/SwiftUI%EB%A5%BC-%EC%9C%84%ED%95%9C-%ED%81%B4%EB%A6%B0-%EC%95%84%ED%82%A4%ED%85%8D%EC%B2%98/
+
+https://medium.com/@mooyoung2309/swiftui-mvvm-clean-architecture-%EC%8B%9C%EC%9E%91%ED%95%98%EA%B8%B0-1-b46dfc2e6213
+
+https://github.com/Team-TravelGenie/TripChat
+
+https://github.com/kudoleh/iOS-Clean-Architecture-MVVM
+
