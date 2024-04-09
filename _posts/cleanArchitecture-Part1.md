@@ -1,6 +1,6 @@
 ---
 layout: single
-title: Ohcle(Today's Climbing) Applying Clean Architecture - Part 1
+title: "Ohcle(Today's Climbing) Applying Clean Architecture - Part 1"
 ---
 
 
