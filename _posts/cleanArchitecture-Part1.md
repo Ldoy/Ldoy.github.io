@@ -1,4 +1,10 @@
-### Ohcle(Today's Climbing) Applying Clean Architecture - Part 1
+---
+layout: post
+title: Ohcle(Today's Climbing) Applying Clean Architecture - Part 1
+---
+
+
+# Ohcle(Today's Climbing) Applying Clean Architecture - Part 1
 - Studying Duration: March 28, 2024 - April 1, 2024
 - Purpose: Refactoring apps using Clean Architecture, thinking about Clean Architecture
 - [Projects Github](https://github.com/ohcle/ohcle-iOS/tree/develop_cleanArchitecture) : develop_cleanarchitecture(branch name)
